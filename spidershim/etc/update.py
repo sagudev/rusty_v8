@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 
-TARGET = "mozjs"
+TARGET = "spidershim/mozjs"
 
 def extract_tarball(tarball, commit):
     print("Extracting tarball.")
@@ -27,7 +27,7 @@ def extract_tarball(tarball, commit):
         subprocess.check_call([
             "rsync",
             "--delete-excluded",
-            "--filter=merge etc/filters.txt",
+            "--filter=merge ./spidershim/etc/filters.txt",
             "--prune-empty-dirs",
             "--quiet",
             "--recursive",
@@ -41,7 +41,7 @@ def extract_tarball(tarball, commit):
 
 def apply_patches():
     print("Applying patches.")
-    patch_dir = os.path.abspath(os.path.join("etc", "patches"))
+    patch_dir = os.path.abspath(os.path.join("spidershim", "etc", "patches"))
     patches = sorted(
         os.path.join(patch_dir, p)
         for p in os.listdir(patch_dir)

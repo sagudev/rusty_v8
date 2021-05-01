@@ -4,3 +4,9 @@
 /.vscode/
 /.idea/
 /target/
+
+*.pyc
+*.o
+*.so
+*.dll
+*.dylib

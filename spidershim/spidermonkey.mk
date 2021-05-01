@@ -184,10 +184,11 @@ all: maybe-configure
 # the same timestamp (e.g. after a git checkout)
 JSSRC := '$(SRC_DIR)'/js/src
 maybe-configure:
-	#[[ $(JSSRC)/configure -ot $(JSSRC)/configure.in ]] && touch $(JSSRC)/configure || true
-	#[[ $(JSSRC)/old-configure -ot $(JSSRC)/old-configure.in ]] && touch $(JSSRC)/old-configure || true
-	#! [[ $(JSSRC)/configure.in -ot $(JSSRC)/configure ]] && touch $(JSSRC)/configure || true
-	#! [[ $(JSSRC)/old-configure.in -ot $(JSSRC)/old-configure ]] && touch $(JSSRC)/old-configure || true
+	$(warning configure)
+	[[ $(JSSRC)/configure -ot $(JSSRC)/configure.in ]] && touch $(JSSRC)/configure || true
+	[[ $(JSSRC)/old-configure -ot $(JSSRC)/old-configure.in ]] && touch $(JSSRC)/old-configure || true
+	! [[ $(JSSRC)/configure.in -ot $(JSSRC)/configure ]] && touch $(JSSRC)/configure || true
+	! [[ $(JSSRC)/old-configure.in -ot $(JSSRC)/old-configure ]] && touch $(JSSRC)/old-configure || true
 	if [[ $(JSSRC)/configure -nt config.status ]] ; then \
 	  PYTHON="$(PYTHON)" MOZ_TOOLS="$(MOZ_TOOLS)" \
 	  CC="$(CC)" CFLAGS="$(CFLAGS)" \

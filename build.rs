@@ -13,7 +13,7 @@ use std::process::Stdio;
 use which::which;
 
 fn main() {
-  println!("cargo:rerun-if-changed=src/binding.cc");
+  //println!("cargo:rerun-if-changed=src/binding.cc");
 
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
@@ -30,35 +30,36 @@ fn main() {
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
 
-  build_sm();
-  return;
-
-  if !(is_trybuild || is_cargo_doc | is_rls) {
-    if env::var_os("V8_FROM_SOURCE").is_some() {
-      build_v8()
-    } else {
-      // utilize a lockfile to prevent linking of
-      // only partially downloaded static library.
-      let root = env::current_dir().unwrap();
-      let out_dir = env::var_os("OUT_DIR").unwrap();
-      let lockfilepath = root
-        .join(out_dir)
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("lib_download.fslock");
-      println!("download lockfile: {:?}", &lockfilepath);
-      let mut lockfile = LockFile::open(&lockfilepath)
-        .expect("Couldn't open lib download lockfile.");
-      lockfile.lock().expect("Couldn't get lock");
-      download_static_lib_binaries();
-      lockfile.unlock().expect("Couldn't unlock lockfile");
+  if env::var_os("CARGO_FEATURE_MOZJS").is_some() {
+    build_sm();
+  } else {
+    if !(is_trybuild || is_cargo_doc | is_rls) {
+      if env::var_os("V8_FROM_SOURCE").is_some() {
+        build_v8()
+      } else {
+        // utilize a lockfile to prevent linking of
+        // only partially downloaded static library.
+        let root = env::current_dir().unwrap();
+        let out_dir = env::var_os("OUT_DIR").unwrap();
+        let lockfilepath = root
+          .join(out_dir)
+          .parent()
+          .unwrap()
+          .parent()
+          .unwrap()
+          .join("lib_download.fslock");
+        println!("download lockfile: {:?}", &lockfilepath);
+        let mut lockfile = LockFile::open(&lockfilepath)
+          .expect("Couldn't open lib download lockfile.");
+        lockfile.lock().expect("Couldn't get lock");
+        download_static_lib_binaries();
+        lockfile.unlock().expect("Couldn't unlock lockfile");
+      }
     }
-  }
 
-  if !(is_cargo_doc || is_rls) {
-    print_link_flags()
+    if !(is_cargo_doc || is_rls) {
+      print_link_flags()
+    }
   }
 }
 
@@ -66,10 +67,24 @@ fn find_make() -> OsString {
   if let Some(make) = env::var_os("MAKE") {
     make
   } else {
-    match Command::new("gmake").status() {
+    match which("gmake") {
       Ok(_) => OsStr::new("gmake").to_os_string(),
       Err(_) => OsStr::new("make").to_os_string(),
     }
+  }
+}
+
+fn find_ccache() -> Option<PathBuf> {
+  if let Some(p) = env::var_os("SCCACHE") {
+    Some(PathBuf::from(&p))
+  } else if let Ok(p) = which("sccache") {
+    Some(p)
+  } else if let Some(p) = env::var_os("CCACHE") {
+    Some(PathBuf::from(&p))
+  } else if let Ok(p) = which("ccache") {
+    Some(p)
+  } else {
+    None
   }
 }
 
@@ -119,6 +134,7 @@ fn build_sm() {
 
   let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
   let build_dir = out_dir.join("build");
+  fs::create_dir_all(&build_dir).expect("could not create build dir");
 
   let target = env::var("TARGET").unwrap();
   let mut make = find_make();
@@ -134,16 +150,23 @@ fn build_sm() {
     make = OsStr::new("mozmake").to_os_string();
   }
 
-  let mut cmd = Command::new(make);
+  let mut cmd;
+  if let Some(ccache) = find_ccache() {
+    cmd = Command::new(ccache);
+    cmd.arg(make);
+  } else {
+    println!("cargo:warning=Not using sccache or ccache");
+    cmd = Command::new(make);
+  }
+  
 
-  /* let encoding_c_mem_include_dir =
+  let encoding_c_mem_include_dir =
     env::var("DEP_ENCODING_C_MEM_INCLUDE_DIR").unwrap();
   let mut cppflags = OsString::from("-I");
   cppflags.push(OsString::from(
     encoding_c_mem_include_dir.replace("\\", "/"),
-  )); 
-  cppflags.push(" ");*/
-  let mut cppflags = OsString::from("");
+  ));
+  cppflags.push(" ");
   cppflags.push(env::var_os("CPPFLAGS").unwrap_or_default());
   cmd.env("CPPFLAGS", cppflags);
 
@@ -162,7 +185,7 @@ fn build_sm() {
     .args(&["-R", "-f"])
     .arg(cargo_manifest_dir.join("spidershim/spidermonkey.mk"))
     .current_dir(&build_dir)
-    .env("SRC_DIR", &cargo_manifest_dir.join("spidershim/spidermonkey"))
+    .env("SRC_DIR", &cargo_manifest_dir.join("spidershim/mozjs"))
     .env("NO_RUST_PANIC_HOOK", "1")
     .status()
     .expect("Failed to run `make`");
@@ -216,13 +239,7 @@ fn build_v8() {
     gn_args.push(format!("clang_base_path={:?}", clang_base_path));
   }
 
-  if let Some(p) = env::var_os("SCCACHE") {
-    cc_wrapper(&mut gn_args, &Path::new(&p));
-  } else if let Ok(p) = which("sccache") {
-    cc_wrapper(&mut gn_args, &p);
-  } else if let Some(p) = env::var_os("CCACHE") {
-    cc_wrapper(&mut gn_args, &Path::new(&p));
-  } else if let Ok(p) = which("ccache") {
+  if let Some(p) = find_ccache() {
     cc_wrapper(&mut gn_args, &p);
   } else {
     println!("cargo:warning=Not using sccache or ccache");
