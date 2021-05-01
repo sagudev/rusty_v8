@@ -88,43 +88,6 @@ fn find_ccache() -> Option<PathBuf> {
   }
 }
 
-fn cc_flags() -> Vec<&'static str> {
-  let mut result = vec!["-DSTATIC_JS_API"];
-
-  if is_debug() {
-    result.extend(&["-DJS_GC_ZEAL", "-DDEBUG", "-DJS_DEBUG"]);
-  }
-
-  let target = env::var("TARGET").unwrap();
-  if target.contains("windows") {
-    result.extend(&[
-      "-std=c++17",
-      "-DWIN32",
-      // Don't use reinterpret_cast() in offsetof(),
-      // since it's not a constant expression, so can't
-      // be used in static_assert().
-      "-D_CRT_USE_BUILTIN_OFFSETOF",
-    ]);
-  } else {
-    result.extend(&[
-      "-std=gnu++17",
-      "-fno-sized-deallocation",
-      "-Wno-unused-parameter",
-      "-Wno-invalid-offsetof",
-      "-Wno-unused-private-field",
-    ]);
-  }
-
-  let is_apple = target.contains("apple");
-  let is_freebsd = target.contains("freebsd");
-
-  if is_apple || is_freebsd {
-    result.push("-stdlib=libc++");
-  }
-
-  result
-}
-
 fn build_sm() {
   // https://github.com/servo/mozjs/issues/113
   env::set_var("MOZCONFIG", "");
@@ -190,11 +153,27 @@ fn build_sm() {
     .expect("Failed to run `make`");
   assert!(result.success());
 
-  build_spidershim();
+  build_spidershim(build_dir);
 }
 
-fn build_spidershim() {
+fn build_spidershim(moz_out: PathBuf) {
+  let build_dir = get_dirs(None).out.join("spidershim_out");
+  fs::create_dir_all(&build_dir).expect("could not create build dir");
 
+  let mut cmd = Command::new(find_make());
+
+  let cargo_manifest_dir =
+    PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+
+  let result = cmd
+    .args(&["-R", "-f"])
+    .arg(cargo_manifest_dir.join("spidershim/Makefile"))
+    .current_dir(&build_dir)
+    .env("SRC_DIR", &cargo_manifest_dir.join("spidershim"))
+    .env("MOZ_OUT", &moz_out)
+    .status()
+    .unwrap();
+  assert!(result.success());
 }
 
 fn build_v8() {
