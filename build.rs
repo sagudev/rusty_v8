@@ -13,7 +13,7 @@ use std::process::Stdio;
 use which::which;
 
 fn main() {
-  //println!("cargo:rerun-if-changed=src/binding.cc");
+  println!("cargo:rerun-if-changed=src/binding.cc");
 
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
@@ -132,8 +132,7 @@ fn build_sm() {
   // https://github.com/servo/servo/issues/14759
   env::set_var("MOZ_NO_DEBUG_RTL", "1");
 
-  let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-  let build_dir = out_dir.join("build");
+  let build_dir = get_dirs(None).out.join("moz_out");
   fs::create_dir_all(&build_dir).expect("could not create build dir");
 
   let target = env::var("TARGET").unwrap();
@@ -190,6 +189,12 @@ fn build_sm() {
     .status()
     .expect("Failed to run `make`");
   assert!(result.success());
+
+  build_spidershim();
+}
+
+fn build_spidershim() {
+
 }
 
 fn build_v8() {

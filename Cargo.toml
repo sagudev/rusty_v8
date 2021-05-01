@@ -93,6 +93,9 @@ align-data = "0.1.0"
 name = "hello_world"
 
 [[example]]
+name = "hello_simple"
+
+[[example]]
 name = "shell"
 
 [[example]]
