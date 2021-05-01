@@ -2,6 +2,8 @@
 use fslock::LockFile;
 use std::collections::HashSet;
 use std::env;
+use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -27,6 +29,9 @@ fn main() {
     .and_then(|f| f.to_str())
     .map(|s| s.starts_with("rls"))
     .unwrap_or(false);
+
+  build_sm();
+  return;
 
   if !(is_trybuild || is_cargo_doc | is_rls) {
     if env::var_os("V8_FROM_SOURCE").is_some() {
@@ -55,6 +60,113 @@ fn main() {
   if !(is_cargo_doc || is_rls) {
     print_link_flags()
   }
+}
+
+fn find_make() -> OsString {
+  if let Some(make) = env::var_os("MAKE") {
+    make
+  } else {
+    match Command::new("gmake").status() {
+      Ok(_) => OsStr::new("gmake").to_os_string(),
+      Err(_) => OsStr::new("make").to_os_string(),
+    }
+  }
+}
+
+fn cc_flags() -> Vec<&'static str> {
+  let mut result = vec!["-DSTATIC_JS_API"];
+
+  if is_debug() {
+    result.extend(&["-DJS_GC_ZEAL", "-DDEBUG", "-DJS_DEBUG"]);
+  }
+
+  let target = env::var("TARGET").unwrap();
+  if target.contains("windows") {
+    result.extend(&[
+      "-std=c++17",
+      "-DWIN32",
+      // Don't use reinterpret_cast() in offsetof(),
+      // since it's not a constant expression, so can't
+      // be used in static_assert().
+      "-D_CRT_USE_BUILTIN_OFFSETOF",
+    ]);
+  } else {
+    result.extend(&[
+      "-std=gnu++17",
+      "-fno-sized-deallocation",
+      "-Wno-unused-parameter",
+      "-Wno-invalid-offsetof",
+      "-Wno-unused-private-field",
+    ]);
+  }
+
+  let is_apple = target.contains("apple");
+  let is_freebsd = target.contains("freebsd");
+
+  if is_apple || is_freebsd {
+    result.push("-stdlib=libc++");
+  }
+
+  result
+}
+
+fn build_sm() {
+  // https://github.com/servo/mozjs/issues/113
+  env::set_var("MOZCONFIG", "");
+
+  // https://github.com/servo/servo/issues/14759
+  env::set_var("MOZ_NO_DEBUG_RTL", "1");
+
+  let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+  let build_dir = out_dir.join("build");
+
+  let target = env::var("TARGET").unwrap();
+  let mut make = find_make();
+
+  // Put MOZTOOLS_PATH at the beginning of PATH if specified
+  if let Some(moztools) = env::var_os("MOZTOOLS_PATH") {
+    let path = env::var_os("PATH").unwrap();
+    let mut paths = Vec::new();
+    paths.extend(env::split_paths(&moztools));
+    paths.extend(env::split_paths(&path));
+    let new_path = env::join_paths(paths).unwrap();
+    env::set_var("PATH", &new_path);
+    make = OsStr::new("mozmake").to_os_string();
+  }
+
+  let mut cmd = Command::new(make);
+
+  /* let encoding_c_mem_include_dir =
+    env::var("DEP_ENCODING_C_MEM_INCLUDE_DIR").unwrap();
+  let mut cppflags = OsString::from("-I");
+  cppflags.push(OsString::from(
+    encoding_c_mem_include_dir.replace("\\", "/"),
+  )); 
+  cppflags.push(" ");*/
+  let mut cppflags = OsString::from("");
+  cppflags.push(env::var_os("CPPFLAGS").unwrap_or_default());
+  cmd.env("CPPFLAGS", cppflags);
+
+  if let Some(makeflags) = env::var_os("CARGO_MAKEFLAGS") {
+    cmd.env("MAKEFLAGS", makeflags);
+  }
+
+  if target.contains("apple") || target.contains("freebsd") {
+    cmd.env("CXXFLAGS", "-stdlib=libc++");
+  }
+
+  let cargo_manifest_dir =
+    PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+
+  let result = cmd
+    .args(&["-R", "-f"])
+    .arg(cargo_manifest_dir.join("spidershim/spidermonkey.mk"))
+    .current_dir(&build_dir)
+    .env("SRC_DIR", &cargo_manifest_dir.join("spidershim/spidermonkey"))
+    .env("NO_RUST_PANIC_HOOK", "1")
+    .status()
+    .expect("Failed to run `make`");
+  assert!(result.success());
 }
 
 fn build_v8() {
