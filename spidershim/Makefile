@@ -1,4 +1,7 @@
-##
+##clang
+CXX := c++
+
+VVFLAGS := -pthread -Wall -Wextra -Wno-unused-parameter -fPIC -m64 -O3 -fno-omit-frame-pointer -fno-rtti -fno-exceptions -MMD -MF
 
 # load spidershim headers
 CXXFLAGS := \
@@ -12,6 +15,9 @@ CXXFLAGS += \
 	-I $(MOZ_OUT)/js/src \
 	-DSTATIC_JS_API \
 	-std=c++17
+
+# force color
+CXXFLAGS += -fcolor-diagnostics
 
 MOZA := -L $(MOZ_OUT)/js/src/build -ljs_static
 
@@ -27,8 +33,6 @@ include $(dir $(abspath $(firstword $(MAKEFILE_LIST))))cc.mk
 #	$(info SPIDERSHIM: mozjs)
 #	$(MAKE) -f spidermonkey.mk
 
-# $(wildcard *.cpp /xxx/xxx/*.cpp): get all .cpp files from the current directory and dir "/xxx/xxx/"
-
 SRC := $(SRC_DIR)/src
 
 SOURCES := $(wildcard $(SRC)/*.cc)
@@ -36,10 +40,9 @@ OBJS := $(patsubst $(SRC)/%.cc, %.o, $(SOURCES))
 
 all: v8
 
-
 v8: $(OBJS)
-	$(AR) rcs $@ $(OBJS)
+	$(AR) crsT $@ $(OBJS)
 
-
-%.o: %.c
-	$(CPP) $(CXXFLAGS) -c $< -o $@ -I.
+%.o: $(SRC)/%.cc
+	$(info $< | $@)
+	$(CXX) $(CXXFLAGS) $(VVFLAGS) -c -o $@ $<
