@@ -14,6 +14,7 @@ use which::which;
 
 fn main() {
   println!("cargo:rerun-if-changed=src/binding.cc");
+  println!("cargo:rerun-if-changed=spidershim/*");
 
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
@@ -120,7 +121,6 @@ fn build_sm() {
     println!("cargo:warning=Not using sccache or ccache");
     cmd = Command::new(make);
   }
-  
 
   let encoding_c_mem_include_dir =
     env::var("DEP_ENCODING_C_MEM_INCLUDE_DIR").unwrap();
@@ -152,6 +152,31 @@ fn build_sm() {
     .status()
     .expect("Failed to run `make`");
   assert!(result.success());
+  println!(
+    "cargo:rustc-link-search=native={}/js/src/build",
+    build_dir.display()
+  );
+  println!("cargo:rustc-link-lib=static=js_static"); // Must come before c++
+  if target.contains("windows") {
+    println!(
+      "cargo:rustc-link-search=native={}/dist/bin",
+      build_dir.display()
+    );
+    println!("cargo:rustc-link-lib=winmm");
+    println!("cargo:rustc-link-lib=psapi");
+    println!("cargo:rustc-link-lib=user32");
+    println!("cargo:rustc-link-lib=Dbghelp");
+    if target.contains("gnu") {
+      println!("cargo:rustc-link-lib=stdc++");
+    }
+    if cfg!(feature = "uwp") {
+      println!("cargo:rustc-link-lib=mincore");
+    }
+  } else if target.contains("apple") || target.contains("freebsd") {
+    println!("cargo:rustc-link-lib=c++");
+  } else {
+    println!("cargo:rustc-link-lib=stdc++");
+  }
 
   build_spidershim(build_dir);
 }

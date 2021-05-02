@@ -10,9 +10,10 @@ CXXFLAGS += \
 	-include $(MOZ_OUT)/dist/include/js/RequiredDefines.h \
 	-I $(MOZ_OUT)/dist/include \
 	-I $(MOZ_OUT)/js/src \
-	-L $(MOZ_OUT)/js/src/build -llibjs_static \
 	-DSTATIC_JS_API \
 	-std=c++17
+
+MOZA := -L $(MOZ_OUT)/js/src/build -ljs_static
 
 ifneq ($(PROFILE),"release")
 	CXXFLAGS += -DDEBUG
@@ -31,10 +32,14 @@ include $(dir $(abspath $(firstword $(MAKEFILE_LIST))))cc.mk
 SRC := $(SRC_DIR)/src
 
 SOURCES := $(wildcard $(SRC)/*.cc)
-OBJECTS := $(patsubst $(SRC)/%.cc, %.o, $(SOURCES))
+OBJS := $(patsubst $(SRC)/%.cc, %.o, $(SOURCES))
 
-all: $(OBJECTS)
-	$(CPP) $^ -o $@
+all: v8
 
-%.o: $(SRC)/%.cc
-	$(CPP) $(CXXFLAGS) -c $< -o $@
+
+v8: $(OBJS)
+	$(AR) rcs $@ $(OBJS)
+
+
+%.o: %.c
+	$(CPP) $(CXXFLAGS) -c $< -o $@ -I.
