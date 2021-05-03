@@ -26,8 +26,8 @@ def extract_tarball(tarball, commit):
 
         subprocess.check_call([
             "rsync",
-            "--delete-excluded",
-            "--filter=merge ./spidershim/etc/filters.txt",
+            #"--delete-excluded",
+            #"--filter=merge ./spidershim/etc/filters.txt",
             "--prune-empty-dirs",
             "--quiet",
             "--recursive",
