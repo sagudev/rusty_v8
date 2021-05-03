@@ -1,7 +1,7 @@
 ##clang
 CXX := c++
 
-VVFLAGS := -std=c++17 -pthread -Wall -Wextra -Wno-unused-parameter -fPIC -m64 -O3 -fno-omit-frame-pointer -fno-rtti -fno-exceptions -MMD -MF
+VVFLAGS := -fuse-ld=lld -std=c++17 -pthread -Wall -Wextra -Wno-unused-parameter -fPIC -m64 -O3 -fno-omit-frame-pointer -fno-rtti -fno-exceptions -MMD -MF
 
 # load spidershim headers
 CXXFLAGS := \
@@ -20,7 +20,7 @@ CXXFLAGS += \
 # force color
 CXXFLAGS += -fcolor-diagnostics
 
-MOZA :=  -ljs_static
+MOZA = -ljs_static -lm -ldl 
 
 ifneq ($(PROFILE),"release")
 	CXXFLAGS += -DDEBUG
