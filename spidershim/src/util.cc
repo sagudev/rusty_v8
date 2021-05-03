@@ -26,12 +26,16 @@
 namespace v8 {
 
 void ReportException(JSContext* cx) {
-  JS::RootedValue exc(cx);
-  JS_GetPendingException(cx, &exc);
+  JS::ExceptionStack exnStack(cx);
+  if (!JS::StealPendingExceptionStack(cx, &exnStack)) {
+    fprintf(stderr, "out of memory while stealing exception\n");
+    JS_ClearPendingException(cx);
+    return;
+  }
   JS_ClearPendingException(cx);
 
-  js::ErrorReport report(cx);
-  if (!report.init(cx, exc, js::ErrorReport::WithSideEffects)) {
+  JS::ErrorReportBuilder report(cx);
+  if (!report.init(cx, exnStack, JS::ErrorReportBuilder::SniffingBehavior::WithSideEffects)) {
     fprintf(stderr, "out of memory initializing ErrorReport\n");
     JS_ClearPendingException(cx);
     return;

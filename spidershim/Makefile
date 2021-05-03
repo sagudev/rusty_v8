@@ -1,7 +1,7 @@
 ##clang
 CXX := c++
 
-VVFLAGS := -pthread -Wall -Wextra -Wno-unused-parameter -fPIC -m64 -O3 -fno-omit-frame-pointer -fno-rtti -fno-exceptions -MMD -MF
+VVFLAGS := -std=c++17 -pthread -Wall -Wextra -Wno-unused-parameter -fPIC -m64 -O3 -fno-omit-frame-pointer -fno-rtti -fno-exceptions -MMD -MF
 
 # load spidershim headers
 CXXFLAGS := \
@@ -10,16 +10,17 @@ CXXFLAGS := \
 
 # SpiderMonkey 
 CXXFLAGS += \
-	-include $(MOZ_OUT)/dist/include/js/RequiredDefines.h \
+	-include $(MOZ_OUT)/js/src/js-confdefs.h \
 	-I $(MOZ_OUT)/dist/include \
 	-I $(MOZ_OUT)/js/src \
+	-L $(MOZ_OUT)/js/src/build \
 	-DSTATIC_JS_API \
 	-std=c++17
 
 # force color
 CXXFLAGS += -fcolor-diagnostics
 
-MOZA := -L $(MOZ_OUT)/js/src/build -ljs_static
+MOZA :=  -ljs_static
 
 ifneq ($(PROFILE),"release")
 	CXXFLAGS += -DDEBUG
@@ -45,4 +46,4 @@ v8: $(OBJS)
 
 %.o: $(SRC)/%.cc
 	$(info $< | $@)
-	$(CXX) $(CXXFLAGS) $(VVFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(VVFLAGS) -c -o $@ $< $(MOZA)
